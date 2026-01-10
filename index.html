@@ -1,0 +1,121 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080, initial-scale=1.0">
+    <title>OVERLAY NODEJS - REACT VERSION</title>
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=League+Gothic&family=Londrina+Solid:wght@300&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; background: #00FF00; overflow: hidden; }
+        .font-lilita { font-family: 'Lilita One', cursive; }
+        .font-gothic { font-family: 'League Gothic', sans-serif; }
+        .font-londrina { font-family: 'Londrina Solid', cursive; }
+        
+        /* Seamless Marquee Logic */
+        @keyframes scrollLeft {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+        .marquee-container {
+            display: flex;
+            white-space: nowrap;
+            width: max-content;
+            animation: scrollLeft var(--speed, 25s) linear infinite;
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(5px); }
+            10% { opacity: 1; transform: translateY(0); }
+            90% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-5px); }
+        }
+        .animate-fade {
+            animation: fadeInOut 5s ease-in-out infinite;
+        }
+
+        /* Intro Sequence Keyframes */
+        @keyframes introLogoMain {
+          0% { opacity: 0; transform: translate(-50%, -50%) scale(3); top: 50%; left: 50%; }
+          10% { opacity: 1; transform: translate(-50%, -50%) scale(3); top: 50%; left: 50%; }
+          20% { opacity: 1; transform: translate(-50%, -50%) scale(3); top: 40%; left: 50%; }
+          70% { opacity: 1; transform: translate(-50%, -50%) scale(3); top: 40%; left: 50%; }
+          85% { opacity: 1; transform: translate(0, 0) scale(1); top: 672px; left: 920px; }
+          100% { opacity: 1; transform: translate(0, 0) scale(1); top: 672px; left: 920px; }
+        }
+
+        @keyframes introVSContainer {
+          0% { opacity: 0; transform: translate(-50%, 0); top: 55%; }
+          25% { opacity: 0; transform: translate(-50%, 20px); top: 55%; }
+          35% { opacity: 1; transform: translate(-50%, 0); top: 55%; }
+          65% { opacity: 1; transform: translate(-50%, 0); top: 55%; }
+          75% { opacity: 0; transform: translate(-50%, -20px); top: 55%; }
+          100% { opacity: 0; }
+        }
+
+        @keyframes introRevealItems {
+          0% { opacity: 0; transform: scale(0.8); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes introRevealBottom {
+          0% { opacity: 0; transform: translateY(50px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Hero Pick Animations */
+        @keyframes heroPickReveal {
+          0% { transform: scale(1.2) translateY(30px); filter: brightness(3) contrast(1.5); opacity: 0; }
+          60% { transform: scale(1) translateY(0); filter: brightness(1.5) contrast(1.2); opacity: 1; }
+          100% { transform: scale(1) translateY(0); filter: brightness(1) contrast(1); opacity: 1; }
+        }
+
+        @keyframes heroGlow {
+          0% { box-shadow: 0 0 0px rgba(255,255,255,0); }
+          50% { box-shadow: 0 0 30px rgba(255,255,255,0.8); }
+          100% { box-shadow: 0 0 0px rgba(255,255,255,0); }
+        }
+
+        .animate-hero-pick {
+          animation: heroPickReveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .hero-container-glow::after {
+          content: '';
+          position: absolute;
+          top: 0; left: 0; right: 0; bottom: 0;
+          pointer-events: none;
+          animation: heroGlow 1s ease-out;
+        }
+
+        /* Triangle Arrow Animation */
+        @keyframes arrowSlide {
+          0% { opacity: 0; transform: translateX(var(--start-x)) rotate(var(--rot)); }
+          50% { opacity: 1; }
+          100% { opacity: 0; transform: translateX(var(--end-x)) rotate(var(--rot)); }
+        }
+        .animate-arrow-1 { animation: arrowSlide 1s infinite 0s; }
+        .animate-arrow-2 { animation: arrowSlide 1s infinite 0.2s; }
+        .animate-arrow-3 { animation: arrowSlide 1s infinite 0.4s; }
+
+        /* Intro Classes */
+        .intro-logo { animation: introLogoMain 8s cubic-bezier(0.7, 0, 0.3, 1) forwards; }
+        .intro-vs { animation: introVSContainer 8s ease-in-out forwards; }
+        .intro-item { animation: introRevealItems 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; }
+        .intro-bottom { animation: introRevealBottom 1s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/"
+  }
+}
+</script>
+</head>
+<body>
+    <div id="root"></div>
+</body>
+</html>
