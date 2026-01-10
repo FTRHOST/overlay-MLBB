@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { AppState, TeamData, AdConfig, ApiConfig } from '../types';
+import React, { useState, useEffect } from 'react';
+import { AppState, TeamData, AdConfig } from '../types';
 
 interface AdminPanelProps {
   state: AppState;
@@ -9,198 +9,292 @@ interface AdminPanelProps {
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ state, setState, resetState }) => {
+  // Local state for draft changes
   const [draft, setDraft] = useState<AppState>(state);
-  const [apiError, setApiError] = useState<string | null>(null);
 
+  // Sync draft with live state only if external change occurs (like reset)
   useEffect(() => {
     setDraft(state);
-  }, [state.assets, state.apiConfig]);
+  }, [state.assets]); // Assets remain live for simplicity or sync on reset
 
-  // Logic to Fetch and Map API
-  const fetchApiData = useCallback(async () => {
-    if (!state.apiConfig.url) return;
-    try {
-      const response = await fetch(state.apiConfig.url);
-      const json = await response.json();
-      
-      const players = json.room_info?.players || [];
-      const banPick = json.ban_pick || {};
-      
-      setDraft(prev => {
-        const next = { ...prev };
-        
-        // Map Blue Team (iCamp: 1)
-        const bluePlayers = players.filter((p: any) => p.iCamp === 1).slice(0, 5);
-        bluePlayers.forEach((p: any, i: number) => {
-          next.blue.pNames[i] = p._sName || 'EMPTY';
-          next.blue.picks[i] = String(p.heroid || '');
-          next.blue.pRoles[i] = p.iRoad || 0;
-        });
-
-        // Map Red Team (iCamp: 2)
-        const redPlayers = players.filter((p: any) => p.iCamp === 2).slice(0, 5);
-        redPlayers.forEach((p: any, i: number) => {
-          next.red.pNames[i] = p._sName || 'EMPTY';
-          next.red.picks[i] = String(p.heroid || '');
-          next.red.pRoles[i] = p.iRoad || 0;
-        });
-
-        // Map Bans
-        if (banPick.ban_list) {
-          // Asumsi ban_list adalah array heroId
-          const blueBans = banPick.ban_list.filter((_: any, i: number) => i % 2 === 0).slice(0, 5);
-          const redBans = banPick.ban_list.filter((_: any, i: number) => i % 2 !== 0).slice(0, 5);
-          next.blue.bans = blueBans.map(String);
-          next.red.bans = redBans.map(String);
-        }
-
-        // Live Logic Sync (Timer & Phase)
-        // Map banPick.state ke Phase String jika dibutuhkan
-        const phaseMap: Record<number, string> = { 0: 'WAITING', 1: 'BANNING', 2: 'PICKING', 6: 'STARTING' };
-        next.game.phase = phaseMap[json.debug?.game_state] || 'MATCH';
-        
-        // Timer dari ban_pick.timers (contoh: pick_time)
-        const activeTimer = banPick.timers?.pick_time || banPick.timers?.ban_time || 0;
-        next.game.timer = activeTimer;
-
-        return next;
-      });
-
-      setApiError(null);
-      
-      // If Auto-Sync is on, apply immediately
-      if (state.apiConfig.isEnabled) {
-        setState(prev => ({
-          ...prev,
-          blue: draft.blue,
-          red: draft.red,
-          game: { ...prev.game, timer: draft.game.timer, phase: draft.game.phase }
-        }));
-      }
-    } catch (err) {
-      setApiError("API Fetch Failed");
-      console.error(err);
-    }
-  }, [state.apiConfig, draft, setState]);
-
-  // Polling Effect
+  // Shortcut Ctrl + Enter to Apply All
   useEffect(() => {
-    if (state.apiConfig.isEnabled) {
-      const interval = setInterval(fetchApiData, state.apiConfig.interval);
-      return () => clearInterval(interval);
-    }
-  }, [state.apiConfig.isEnabled, state.apiConfig.interval, fetchApiData]);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        applyAll();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [draft]);
 
-  const updateDraftTeam = (side: 'blue' | 'red', field: string, value: any, index?: number) => {
+  const updateDraftTeam = (side: 'blue' | 'red', field: string, value: string | string[], index?: number) => {
     setDraft(prev => {
       const newDraft = { ...prev };
       const team = { ...newDraft[side] };
+      
       if (index !== undefined && Array.isArray(team[field as keyof TeamData])) {
-        const arr = [...(team[field as keyof TeamData] as any[])];
-        arr[index] = value;
-        (team[field as keyof TeamData] as any) = arr;
+        const arr = [...(team[field as keyof TeamData] as string[])];
+        arr[index] = value as string;
+        (team[field as keyof TeamData] as string[]) = arr;
       } else {
         (team[field as keyof TeamData] as any) = value;
       }
+      
       newDraft[side] = team;
       return newDraft;
     });
   };
 
-  const applyAll = () => setState(draft);
+  const handleDraftLogoUpload = (side: 'blue' | 'red', e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => updateDraftTeam(side, 'logo', reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const updateDraftAdConfig = (field: keyof AdConfig, value: any) => {
+    setDraft(prev => ({
+      ...prev,
+      adConfig: { ...prev.adConfig, [field]: value }
+    }));
+  };
+
+  const applyTeamChanges = (side: 'blue' | 'red') => {
+    setState(prev => ({
+      ...prev,
+      [side]: draft[side]
+    }));
+  };
+
+  const applyAdChanges = () => {
+    setState(prev => ({
+      ...prev,
+      adConfig: draft.adConfig,
+      ads: draft.ads
+    }));
+  };
+
+  const applyAll = () => {
+    setState(draft);
+  };
+
+  // Immediate controls (Real-time)
+  const updateLiveGame = (field: string, value: any) => {
+    setState(prev => ({
+      ...prev,
+      game: { ...prev.game, [field]: value }
+    }));
+    // Sync draft so it doesn't get overwritten by old game state later
+    setDraft(prev => ({
+      ...prev,
+      game: { ...prev.game, [field]: value }
+    }));
+  };
+
   const isTeamDirty = (side: 'blue' | 'red') => JSON.stringify(state[side]) !== JSON.stringify(draft[side]);
+  const isAdsDirty = () => JSON.stringify(state.adConfig) !== JSON.stringify(draft.adConfig) || JSON.stringify(state.ads) !== JSON.stringify(draft.ads);
+
+  const isEnabled = state.game.isGameControlEnabled;
 
   return (
-    <div className="fixed left-0 top-0 w-80 h-full bg-slate-900 text-white p-4 z-[100] overflow-y-auto border-r border-slate-700 font-sans text-sm">
+    <div className="fixed left-0 top-0 w-80 h-full bg-slate-900 text-white p-4 z-[100] overflow-y-auto border-r border-slate-700 font-sans text-sm shadow-2xl">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-blue-400 uppercase">Admin</h2>
-        <button onClick={resetState} className="text-[10px] bg-red-900/50 px-2 py-1 rounded font-bold">RESET</button>
+        <h2 className="text-xl font-bold text-blue-400">Admin Control</h2>
+        <button onClick={resetState} className="text-[10px] bg-red-900/50 hover:bg-red-600 px-2 py-1 rounded transition-colors uppercase font-bold">
+          Reset
+        </button>
       </div>
-
-      {/* API INTEGRATION SECTION */}
-      <div className="mb-6 p-3 bg-indigo-950/40 border border-indigo-500/30 rounded">
-        <h3 className="text-[10px] font-bold text-indigo-300 uppercase mb-2">API Integration (Real-time)</h3>
-        <div className="space-y-2">
-          <input 
-            value={state.apiConfig.url}
-            onChange={(e) => setState(prev => ({ ...prev, apiConfig: { ...prev.apiConfig, url: e.target.value }}))}
-            className="w-full bg-slate-800 p-1.5 rounded text-[10px] outline-none border border-slate-700 focus:border-indigo-500"
-            placeholder="http://api-url/data.json"
-          />
-          <div className="flex gap-2">
-            <button 
-              onClick={fetchApiData}
-              className="flex-1 bg-indigo-600 hover:bg-indigo-500 p-1.5 rounded font-bold text-[9px] uppercase"
-            >
-              Fetch Data
-            </button>
-            <button 
-              onClick={() => setState(prev => ({ ...prev, apiConfig: { ...prev.apiConfig, isEnabled: !prev.apiConfig.isEnabled }}))}
-              className={`flex-1 p-1.5 rounded font-bold text-[9px] uppercase ${state.apiConfig.isEnabled ? 'bg-green-600' : 'bg-slate-700'}`}
-            >
-              {state.apiConfig.isEnabled ? 'Auto Sync ON' : 'Auto Sync OFF'}
-            </button>
-          </div>
-          {apiError && <p className="text-[9px] text-red-400 mt-1">⚠️ {apiError}</p>}
-        </div>
-      </div>
-
+      
       <div className="flex gap-2 mb-6">
-        <button onClick={applyAll} className="flex-1 bg-green-600 hover:bg-green-500 p-2 rounded font-bold text-[10px] uppercase">Publish All</button>
+        <button 
+          onClick={() => setState(prev => ({ ...prev, game: { ...prev.game, isIntroActive: true }}))}
+          disabled={state.game.isIntroActive}
+          className={`flex-1 p-2 rounded font-bold text-[10px] uppercase tracking-wider transition-all ${state.game.isIntroActive ? 'bg-slate-700 opacity-50' : 'bg-indigo-600 hover:bg-indigo-500'}`}
+        >
+          {state.game.isIntroActive ? 'Intro...' : '▶ Intro'}
+        </button>
+        <button 
+          onClick={applyAll}
+          className="flex-1 bg-green-600 hover:bg-green-500 p-2 rounded font-bold text-[10px] uppercase tracking-wider shadow-lg shadow-green-900/20"
+          title="Shortcut: Ctrl + Enter"
+        >
+          Publish All
+        </button>
       </div>
 
-      {/* Live Logic Indicators */}
-      <div className="mb-6 p-3 bg-slate-800 rounded">
-        <label className="block text-[10px] text-slate-500 font-bold mb-2">GAME STATE</label>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="bg-slate-700 p-1.5 rounded text-center">
-            <span className="block text-[8px] text-slate-400">PHASE</span>
-            <span className="font-bold text-xs">{state.game.phase}</span>
+      {/* Real-time Game Controls */}
+      <div className={`mb-6 p-3 rounded transition-all duration-300 ${isEnabled ? 'bg-slate-800' : 'bg-slate-950/50 border border-slate-800'}`}>
+        <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-700/50">
+          <label className="text-xs text-slate-400 font-bold uppercase tracking-wider">Live Logic</label>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => updateLiveGame('isGameControlEnabled', !state.game.isGameControlEnabled)}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 ${isEnabled ? 'bg-blue-600' : 'bg-slate-700'}`}
+            >
+              <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${isEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+            </button>
           </div>
-          <div className="bg-slate-700 p-1.5 rounded text-center">
-            <span className="block text-[8px] text-slate-400">TIMER</span>
-            <span className="font-bold text-xs">{state.game.timer}s</span>
+        </div>
+
+        <div className={`space-y-3 transition-opacity duration-300 ${isEnabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="block text-[10px] text-slate-500">PHASE</label>
+              <select 
+                value={state.game.phase}
+                onChange={(e) => updateLiveGame('phase', e.target.value)}
+                className="w-full bg-slate-700 p-2 rounded text-xs"
+              >
+                <option>BANNING</option>
+                <option>PICKING</option>
+                <option>PREPARING</option>
+                <option>STARTING</option>
+              </select>
+            </div>
+            <div className="w-20">
+              <label className="block text-[10px] text-slate-500">TIMER</label>
+              <input 
+                type="number"
+                value={state.game.timer}
+                onChange={(e) => updateLiveGame('timer', parseInt(e.target.value) || 0)}
+                className="w-full bg-slate-700 p-2 rounded text-center text-xs"
+              />
+            </div>
+          </div>
+          <div>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => updateLiveGame('turn', 'blue')}
+                className={`flex-1 p-1 rounded text-[10px] font-bold ${state.game.turn === 'blue' ? 'bg-blue-600' : 'bg-slate-700'}`}
+              >
+                BLUE TURN
+              </button>
+              <button 
+                onClick={() => updateLiveGame('turn', 'red')}
+                className={`flex-1 p-1 rounded text-[10px] font-bold ${state.game.turn === 'red' ? 'bg-red-600' : 'bg-slate-700'}`}
+              >
+                RED TURN
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Teams Sections */}
-      {/* Changed side to be typed as 'blue' | 'red' for proper property access on draft */}
-      {(['blue', 'red'] as const).map((side) => (
-        <div key={side} className={`mb-6 p-3 rounded bg-slate-800 border ${isTeamDirty(side) ? 'border-amber-500/40' : 'border-transparent'}`}>
+      {/* Ads Section (Draftable) */}
+      <div className={`mb-6 p-3 rounded bg-slate-800 border ${isAdsDirty() ? 'border-amber-500/50 shadow-[0_0_10px_rgba(245,158,11,0.1)]' : 'border-transparent'}`}>
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-xs font-bold text-slate-400 uppercase">Ads & Sponsor</h3>
+          {isAdsDirty() && (
+            <button onClick={applyAdChanges} className="bg-amber-600 hover:bg-amber-500 text-[9px] px-2 py-0.5 rounded font-bold animate-pulse">
+              APPLY
+            </button>
+          )}
+        </div>
+        
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <select 
+              value={draft.adConfig.type}
+              onChange={(e) => updateDraftAdConfig('type', e.target.value as any)}
+              className="flex-1 bg-slate-700 p-1 rounded text-xs"
+            >
+              <option value="images">Logos</option>
+              <option value="text">Text</option>
+            </select>
+            <select 
+              value={draft.adConfig.effect}
+              onChange={(e) => updateDraftAdConfig('effect', e.target.value as any)}
+              className="flex-1 bg-slate-700 p-1 rounded text-xs"
+            >
+              <option value="scroll">Scroll</option>
+              <option value="fade">Fade</option>
+            </select>
+          </div>
+          {draft.adConfig.type === 'text' ? (
+            <textarea 
+              value={draft.adConfig.text}
+              onChange={(e) => updateDraftAdConfig('text', e.target.value)}
+              className="w-full bg-slate-700 p-2 rounded text-xs h-12"
+            />
+          ) : (
+            <input 
+              value={draft.ads.join(', ')}
+              onChange={(e) => setDraft(prev => ({ ...prev, ads: e.target.value.split(',').map(s => s.trim()) }))}
+              className="w-full bg-slate-700 p-1 rounded text-xs"
+              placeholder="logo1, logo2..."
+            />
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-8 pb-10">
+        {/* Blue Team (Draftable) */}
+        <div className={`p-3 rounded bg-slate-800 border ${isTeamDirty('blue') ? 'border-blue-500/50 shadow-[0_0_10px_rgba(37,99,235,0.1)]' : 'border-transparent'}`}>
           <div className="flex justify-between items-center mb-3">
-            <h3 className={`font-bold uppercase ${side === 'blue' ? 'text-blue-400' : 'text-red-400'}`}>{side} Team</h3>
-            {isTeamDirty(side) && (
-              <button onClick={() => setState(prev => ({ ...prev, [side]: draft[side] }))} className="bg-amber-600 text-[8px] px-2 py-0.5 rounded font-bold">APPLY</button>
+            <h3 className="text-blue-400 font-bold uppercase">Blue Team</h3>
+            {isTeamDirty('blue') && (
+              <button onClick={() => applyTeamChanges('blue')} className="bg-blue-600 hover:bg-blue-500 text-[9px] px-2 py-0.5 rounded font-bold">
+                APPLY
+              </button>
             )}
           </div>
           <input 
-            value={draft[side].name}
-            onChange={(e) => updateDraftTeam(side, 'name', e.target.value)}
-            className="w-full bg-slate-700 p-2 rounded mb-3 text-xs font-bold"
+            type="file" accept="image/*" 
+            onChange={(e) => handleDraftLogoUpload('blue', e)} 
+            className="text-[10px] w-full mb-2" 
+          />
+          <input 
+            value={draft.blue.name}
+            onChange={(e) => updateDraftTeam('blue', 'name', e.target.value)}
+            className="w-full bg-slate-700 p-2 rounded mb-4 font-bold outline-none focus:ring-1 ring-blue-500"
+            placeholder="Team Name"
           />
           <div className="space-y-2">
-            {draft[side].picks.map((p, i) => (
-              <div key={i} className="flex gap-1 items-center">
-                <select 
-                  value={draft[side].pRoles[i]}
-                  onChange={(e) => updateDraftTeam(side, 'pRoles', parseInt(e.target.value), i)}
-                  className="bg-slate-900 text-[9px] p-1 rounded w-16"
-                >
-                  <option value={0}>NONE</option>
-                  <option value={1}>EXP</option>
-                  <option value={2}>MID</option>
-                  <option value={3}>ROAM</option>
-                  <option value={4}>JNG</option>
-                  <option value={5}>GOLD</option>
-                </select>
-                <input placeholder="HeroID" value={p} onChange={(e) => updateDraftTeam(side, 'picks', e.target.value, i)} className="w-12 bg-slate-700 p-1 text-[10px] rounded" />
-                <input placeholder="Name" value={draft[side].pNames[i]} onChange={(e) => updateDraftTeam(side, 'pNames', e.target.value, i)} className="flex-1 bg-slate-700 p-1 text-[10px] rounded" />
+            <label className="text-[10px] text-slate-500 font-bold">PICKS & PLAYERS</label>
+            {draft.blue.picks.map((p, i) => (
+              <div key={i} className="flex gap-1">
+                <input placeholder="Hero" value={p} onChange={(e) => updateDraftTeam('blue', 'picks', e.target.value, i)} className="w-1/3 bg-slate-700 p-1 text-[10px] rounded" />
+                <input placeholder="Name" value={draft.blue.pNames[i]} onChange={(e) => updateDraftTeam('blue', 'pNames', e.target.value, i)} className="w-2/3 bg-slate-700 p-1 text-[10px] rounded" />
               </div>
             ))}
           </div>
         </div>
-      ))}
+
+        {/* Red Team (Draftable) */}
+        <div className={`p-3 rounded bg-slate-800 border ${isTeamDirty('red') ? 'border-red-500/50 shadow-[0_0_10px_rgba(220,38,38,0.1)]' : 'border-transparent'}`}>
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-red-400 font-bold uppercase">Red Team</h3>
+            {isTeamDirty('red') && (
+              <button onClick={() => applyTeamChanges('red')} className="bg-red-600 hover:bg-red-500 text-[9px] px-2 py-0.5 rounded font-bold">
+                APPLY
+              </button>
+            )}
+          </div>
+          <input 
+            type="file" accept="image/*" 
+            onChange={(e) => handleDraftLogoUpload('red', e)} 
+            className="text-[10px] w-full mb-2" 
+          />
+          <input 
+            value={draft.red.name}
+            onChange={(e) => updateDraftTeam('red', 'name', e.target.value)}
+            className="w-full bg-slate-700 p-2 rounded mb-4 font-bold outline-none focus:ring-1 ring-red-500"
+            placeholder="Team Name"
+          />
+          <div className="space-y-2">
+            <label className="text-[10px] text-slate-500 font-bold">PICKS & PLAYERS</label>
+            {draft.red.picks.map((p, i) => (
+              <div key={i} className="flex gap-1">
+                <input placeholder="Hero" value={p} onChange={(e) => updateDraftTeam('red', 'picks', e.target.value, i)} className="w-1/3 bg-slate-700 p-1 text-[10px] rounded" />
+                <input placeholder="Name" value={draft.red.pNames[i]} onChange={(e) => updateDraftTeam('red', 'pNames', e.target.value, i)} className="w-2/3 bg-slate-700 p-1 text-[10px] rounded" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

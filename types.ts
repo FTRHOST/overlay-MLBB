@@ -4,7 +4,6 @@ export interface TeamData {
   logo?: string;
   picks: string[];
   pNames: string[];
-  pRoles: number[]; // Menyimpan iRoad (0-5)
   bans: string[];
 }
 
@@ -14,12 +13,6 @@ export interface GameState {
   turn: 'blue' | 'red';
   isIntroActive: boolean;
   isGameControlEnabled: boolean;
-}
-
-export interface ApiConfig {
-  url: string;
-  isEnabled: boolean;
-  interval: number;
 }
 
 export interface AppAssets {
@@ -43,5 +36,4 @@ export interface AppState {
   ads: string[];
   adConfig: AdConfig;
   assets: AppAssets;
-  apiConfig: ApiConfig;
 }

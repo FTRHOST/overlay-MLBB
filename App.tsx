@@ -7,19 +7,17 @@ import { syncService } from './services/SyncService';
 
 const INITIAL_STATE: AppState = {
   blue: {
-    name: 'BLUE TEAM',
+    name: 'MANSABA A',
     logo: '',
     picks: ['', '', '', '', ''],
     pNames: ['PLAYER 1', 'PLAYER 2', 'PLAYER 3', 'PLAYER 4', 'PLAYER 5'],
-    pRoles: [0, 0, 0, 0, 0],
     bans: ['', '', '', '', '']
   },
   red: {
-    name: 'RED TEAM',
+    name: 'MANSABA B',
     logo: '',
     picks: ['', '', '', '', ''],
     pNames: ['PLAYER 1', 'PLAYER 2', 'PLAYER 3', 'PLAYER 4', 'PLAYER 5'],
-    pRoles: [0, 0, 0, 0, 0],
     bans: ['', '', '', '', '']
   },
   game: {
@@ -33,7 +31,7 @@ const INITIAL_STATE: AppState = {
   adConfig: {
     type: 'images',
     effect: 'scroll',
-    text: 'WELCOME TO THE TOURNAMENT!',
+    text: 'WELCOME TO THE TOURNAMENT! ENJOY THE MATCH!',
     speed: 25
   },
   assets: {
@@ -41,11 +39,6 @@ const INITIAL_STATE: AppState = {
     union2: '',
     logo: '',
     gradient: ''
-  },
-  apiConfig: {
-    url: 'http://localhost:8080/data.json',
-    isEnabled: false,
-    interval: 2000
   }
 };
 
@@ -82,26 +75,43 @@ const App: React.FC = () => {
     const scaleUI = () => {
       const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
       const container = document.getElementById('overlay-main');
-      if (container) container.style.transform = `scale(${s})`;
+      if (container) {
+        container.style.transform = `scale(${s})`;
+      }
     };
     window.addEventListener('resize', scaleUI);
     scaleUI();
     return () => window.removeEventListener('resize', scaleUI);
   }, []);
 
-  // Timer Logic
+  // Timer logic dipengaruhi oleh isGameControlEnabled
   useEffect(() => {
     const interval = setInterval(() => {
       updateState(prev => {
-        if (!prev.game.isGameControlEnabled || prev.game.timer <= 0 || prev.apiConfig.isEnabled) return prev;
+        if (!prev.game.isGameControlEnabled || prev.game.timer <= 0) return prev;
         return {
           ...prev,
-          game: { ...prev.game, timer: prev.game.timer - 1 }
+          game: {
+            ...prev.game,
+            timer: prev.game.timer - 1
+          }
         };
       });
     }, 1000);
     return () => clearInterval(interval);
   }, [updateState]);
+
+  useEffect(() => {
+    if (state.game.isIntroActive) {
+      const timer = setTimeout(() => {
+        updateState(prev => ({
+          ...prev,
+          game: { ...prev.game, isIntroActive: false }
+        }));
+      }, 9500);
+      return () => clearTimeout(timer);
+    }
+  }, [state.game.isIntroActive, updateState]);
 
   return (
     <div className="relative w-full h-screen overflow-hidden bg-[#00FF00]">
