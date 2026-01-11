@@ -7,6 +7,7 @@
   # Di sini kita menginstal Node.js yang diperlukan untuk proyek Vite.
   packages = [
     pkgs.nodejs_20 # Menggunakan Node.js versi 20 sebagai contoh
+    pkgs.docker-compose
   ];
 
   # Perintah yang akan dijalankan saat ruang kerja dibuat dan dibuka untuk pertama kalinya.

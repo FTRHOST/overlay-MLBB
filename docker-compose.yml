@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  backend:
+    build: .
+    ports:
+      - "3002:3002"
+    volumes:
+      - ./public/upload:/app/public/upload
+    environment:
+      - NODE_ENV=production
+
+  frontend:
+    image: node:20-slim
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "5173:5173"
+    command: >
+      bash -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+
+networks:
+  default:
+    driver: bridge

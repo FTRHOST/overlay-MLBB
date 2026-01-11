@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
+  console.log('VITE_WS_URL:', env.VITE_WS_URL);
   return {
     server: {
       host: true,

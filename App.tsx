@@ -1,76 +1,61 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { Routes, Route } from 'react-router-dom';
 import Overlay from './components/Overlay';
-import AdminPanel from './components/AdminPanel';
+import ControlPanel from './ControlPanel';
 import { AppState } from './types';
 import { syncService } from './services/SyncService';
 
-const INITIAL_STATE: AppState = {
-  blue: {
-    name: 'MANSABA A',
-    logo: '',
-    picks: ['', '', '', '', ''],
-    pNames: ['PLAYER 1', 'PLAYER 2', 'PLAYER 3', 'PLAYER 4', 'PLAYER 5'],
-    bans: ['', '', '', '', '']
-  },
-  red: {
-    name: 'MANSABA B',
-    logo: '',
-    picks: ['', '', '', '', ''],
-    pNames: ['PLAYER 1', 'PLAYER 2', 'PLAYER 3', 'PLAYER 4', 'PLAYER 5'],
-    bans: ['', '', '', '', '']
-  },
-  game: {
-    phase: 'BANNING',
-    timer: 30,
-    turn: 'blue',
-    isIntroActive: false,
-    isGameControlEnabled: true
-  },
-  ads: ['AD 1', 'AD 2', 'AD 3'],
-  adConfig: {
-    type: 'images',
-    effect: 'scroll',
-    text: 'WELCOME TO THE TOURNAMENT! ENJOY THE MATCH!',
-    speed: 25
-  },
-  assets: {
-    union1: '',
-    union2: '',
-    logo: '',
-    gradient: ''
-  }
-};
+// INITIAL_STATE is now managed by the server.
+// The client will receive it upon connection.
 
 const App: React.FC = () => {
-  const [state, setState] = useState<AppState>(() => {
-    return syncService.loadState() || INITIAL_STATE;
-  });
-  
-  const [showAdmin, setShowAdmin] = useState(false);
-  const [isOverlayOnly, setIsOverlayOnly] = useState(false);
+  // Initialize state to null until we get it from the server
+  const [state, setState] = useState<AppState | null>(null);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('view') === 'overlay') {
-      setIsOverlayOnly(true);
-    }
-  }, []);
+    // onUpdate will be called both on initial connection and for subsequent updates
+    syncService.onUpdate((remoteState) => {
+      setState(remoteState);
+    });
+  }, []); // Empty dependency array means this runs once on mount
 
   const updateState = useCallback((newState: AppState | ((prev: AppState) => AppState)) => {
+    // We need to handle the function form of setState
     setState(prev => {
+      // If the previous state is null, we can't apply a function update.
+      // This case should ideally not happen if updateState is called only after state is set.
+      if (prev === null) {
+          if (typeof newState === 'function') return null;
+          syncService.saveState(newState);
+          return newState;
+      }
+      
       const updated = typeof newState === 'function' ? newState(prev) : newState;
       syncService.saveState(updated);
       return updated;
     });
   }, []);
 
-  useEffect(() => {
-    syncService.onUpdate((remoteState) => {
-      setState(remoteState);
-    });
-  }, []);
+  const resetState = () => {
+    // This now sends a request to the server to reset the state for everyone
+    syncService.resetState();
+  };
 
+  // Render a loading/connecting message until we have state
+  if (!state) {
+    return <div className="w-screen h-screen bg-slate-900 text-white flex items-center justify-center font-sans text-2xl">Connecting to server...</div>;
+  }
+
+  return (
+    <Routes>
+      <Route path="/" element={<OverlayContainer state={state} />} />
+      <Route path="/control" element={<ControlPanel state={state} updateState={updateState} resetState={resetState} />} />
+    </Routes>
+  );
+};
+
+const OverlayContainer: React.FC<{ state: AppState }> = ({ state }) => {
   useEffect(() => {
     const scaleUI = () => {
       const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
@@ -84,50 +69,8 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', scaleUI);
   }, []);
 
-  // Timer logic dipengaruhi oleh isGameControlEnabled
-  useEffect(() => {
-    const interval = setInterval(() => {
-      updateState(prev => {
-        if (!prev.game.isGameControlEnabled || prev.game.timer <= 0) return prev;
-        return {
-          ...prev,
-          game: {
-            ...prev.game,
-            timer: prev.game.timer - 1
-          }
-        };
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [updateState]);
-
-  useEffect(() => {
-    if (state.game.isIntroActive) {
-      const timer = setTimeout(() => {
-        updateState(prev => ({
-          ...prev,
-          game: { ...prev.game, isIntroActive: false }
-        }));
-      }, 9500);
-      return () => clearTimeout(timer);
-    }
-  }, [state.game.isIntroActive, updateState]);
-
   return (
     <div className="relative w-full h-screen overflow-hidden bg-[#00FF00]">
-      {!isOverlayOnly && (
-        <button 
-          onClick={() => setShowAdmin(!showAdmin)}
-          className="fixed bottom-4 right-4 z-[110] bg-gray-800 text-white p-2 rounded opacity-30 hover:opacity-100 transition-opacity flex items-center gap-2"
-        >
-          {showAdmin ? '✕ Close Admin' : '⚙ Open Controls'}
-        </button>
-      )}
-
-      {showAdmin && !isOverlayOnly && (
-        <AdminPanel state={state} setState={updateState} resetState={() => updateState(INITIAL_STATE)} />
-      )}
-
       <div id="overlay-main" className="origin-top-left w-[1920px] h-[1080px]">
         <Overlay data={state} />
       </div>
