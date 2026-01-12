@@ -3,7 +3,9 @@
   "compilerOptions": {
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "outDir": "dist"
+    "outDir": "dist",
+    "noEmit": false,
+    "allowImportingTsExtensions": false
   },
   "include": ["server.ts"]
 }

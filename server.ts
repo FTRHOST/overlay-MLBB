@@ -4,7 +4,7 @@ import cors from 'cors';
 import path, { dirname } from 'path';
 import http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { AppState } from './types';
+import { AppState } from './types.js';
 import { fileURLToPath } from 'url';
 import fs from 'fs'; // Import fs module
 
@@ -41,21 +41,31 @@ const INITIAL_STATE: AppState = {
     logo: '',
     picks: ['', '', '', '', ''],
     pNames: ['PLAYER 1', 'PLAYER 2', 'PLAYER 3', 'PLAYER 4', 'PLAYER 5'],
-    bans: ['', '', '', '', '']
+    bans: ['', '', '', '', ''],
+    score: 0
   },
   red: {
     name: 'MANSABA B',
     logo: '',
     picks: ['', '', '', '', ''],
     pNames: ['PLAYER 1', 'PLAYER 2', 'PLAYER 3', 'PLAYER 4', 'PLAYER 5'],
-    bans: ['', '', '', '', '']
+    bans: ['', '', '', '', ''],
+    score: 0
   },
   game: {
     phase: 'BANNING',
     timer: 30,
     turn: 'blue',
     isIntroActive: false,
-    isGameControlEnabled: true
+    isGameControlEnabled: true,
+    bestOf: 3,
+    visibility: {
+      phase: true,
+      timer: true,
+      turn: true,
+      score: true
+    },
+    isBracketActive: false
   },
   ads: ['AD 1', 'AD 2', 'AD 3'],
   adConfig: {
@@ -69,6 +79,15 @@ const INITIAL_STATE: AppState = {
     union2: '',
     logo: '',
     gradient: ''
+  },
+  registry: [],
+  bracket: {
+    semis: [
+      { id: 'semi1', team1: 'TEAM A', team2: 'TEAM B', score1: 0, score2: 0, winner: undefined },
+      { id: 'semi2', team1: 'TEAM C', team2: 'TEAM D', score1: 0, score2: 0, winner: undefined }
+    ],
+    final: { id: 'final', team1: 'TBD', team2: 'TBD', score1: 0, score2: 0, winner: undefined },
+    champion: ''
   }
 };
 
@@ -85,6 +104,16 @@ try {
 } catch (error) {
   console.error('Error loading or parsing metadata.json:', error);
 }
+
+// Function to save state to metadata.json
+const saveState = () => {
+  try {
+    fs.writeFileSync(METADATA_FILE_PATH, JSON.stringify(appState, null, 2), 'utf8');
+    // console.log('State saved to metadata.json'); // Optional logging
+  } catch (error) {
+    console.error('Error saving state to metadata.json:', error);
+  }
+};
 
 app.use(cors());
 
@@ -105,6 +134,7 @@ const upload = multer({ storage: storage });
 app.post('/reset', (req, res) => {
   console.log('State has been reset');
   appState = { ...INITIAL_STATE };
+  saveState(); // Save state
   // Broadcast new state after reset
   wss.clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
@@ -133,6 +163,8 @@ app.post('/upload', upload.single('file'), (req, res) => {
       appState.assets.logo = filePath;
   }
   // Add other logic if needed, eg for banners, etc.
+  
+  saveState(); // Save state
 
   // Broadcast the updated state to all clients
   wss.clients.forEach(client => {
@@ -150,6 +182,14 @@ app.post('/upload', upload.single('file'), (req, res) => {
 // Serve the uploaded files
 app.use('/upload', express.static(path.join(__dirname, '..', 'public', 'upload')));
 
+// Serve static frontend files (assuming they are in the same 'dist' folder)
+app.use(express.static(__dirname));
+
+// SPA catch-all route
+app.get(/.*/, (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
@@ -164,6 +204,7 @@ wss.on('connection', (ws) => {
       const receivedState = JSON.parse(message.toString());
       // Update server state
       appState = receivedState;
+      saveState(); // Save state
       
       // Broadcast new state to all clients except sender
       wss.clients.forEach((client) => {
@@ -182,6 +223,6 @@ wss.on('connection', (ws) => {
 });
 
 
-server.listen(port, () => {
-  console.log(`Server with WebSocket is running on http://localhost:${port}`);
+server.listen(port, '0.0.0.0', () => {
+  console.log(`Server with WebSocket is running on http://0.0.0.0:${port}`);
 });

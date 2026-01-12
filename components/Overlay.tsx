@@ -171,6 +171,79 @@ const TurnIndicator: React.FC<{ turn: 'blue' | 'red' }> = ({ turn }) => {
   );
 };
 
+const ScoreIndicator: React.FC<{ score: number; bestOf: number; side: 'blue' | 'red' }> = ({ score, bestOf, side }) => {
+  // bestOf 1 -> 1 slot (1 win)
+  // bestOf 3 -> 2 slots (2 wins)
+  // bestOf 5 -> 3 slots (3 wins)
+  const maxWins = Math.ceil(bestOf / 2); 
+  const dots = Array.from({ length: maxWins }, (_, i) => i < score);
+
+  return (
+    <div className={`flex gap-1 ${side === 'blue' ? 'flex-row-reverse' : 'flex-row'}`}>
+      {dots.map((active, i) => (
+        <div 
+          key={i} 
+          className={`w-3 h-3 rotate-45 border border-white transition-all duration-300 ${active ? (side === 'blue' ? 'bg-cyan-400 shadow-[0_0_10px_cyan]' : 'bg-red-500 shadow-[0_0_10px_red]') : 'bg-black/50'}`} 
+        />
+      ))}
+    </div>
+  );
+};
+
+const BracketView: React.FC<{ bracket: AppState['bracket'] }> = ({ bracket }) => {
+  if (!bracket) return null;
+  return (
+    <div className="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center animate-fade z-50">
+       <div className="text-6xl font-black font-londrina text-white mb-12 tracking-widest text-shadow-lg">TOURNAMENT BRACKET</div>
+       <div className="flex items-center gap-20">
+          {/* Semifinals */}
+          <div className="flex flex-col gap-24">
+             {bracket.semis.map((match, i) => (
+               <div key={i} className="relative w-80 bg-slate-800 border-2 border-slate-600 rounded-xl overflow-hidden shadow-2xl">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+                  <div className="flex justify-between items-center p-4 bg-slate-800/50 border-b border-slate-700">
+                     <span className="text-2xl font-black font-gothic text-white truncate">{match.team1}</span>
+                     <span className={`text-3xl font-black font-gothic ${match.score1 > match.score2 ? 'text-green-400' : 'text-slate-400'}`}>{match.score1}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-4 bg-slate-800/50">
+                     <span className="text-2xl font-black font-gothic text-white truncate">{match.team2}</span>
+                     <span className={`text-3xl font-black font-gothic ${match.score2 > match.score1 ? 'text-green-400' : 'text-slate-400'}`}>{match.score2}</span>
+                  </div>
+                  {/* Connector Line */}
+                  <div className={`absolute -right-10 top-1/2 w-10 h-1 bg-slate-600 ${i === 0 ? 'rotate-45 origin-left translate-y-10' : '-rotate-45 origin-left -translate-y-10'}`}></div>
+               </div>
+             ))}
+          </div>
+
+          {/* Finals */}
+          <div className="relative w-96 bg-gradient-to-b from-slate-800 to-slate-900 border-4 border-amber-500 rounded-2xl overflow-hidden shadow-[0_0_50px_rgba(245,158,11,0.3)] transform scale-110">
+              <div className="bg-amber-500 text-black text-center font-black py-1 tracking-widest text-sm">GRAND FINAL</div>
+              <div className="p-6 flex flex-col gap-4">
+                  <div className="flex justify-between items-center border-b border-slate-700 pb-2">
+                     <span className="text-3xl font-black font-gothic text-white">{bracket.final.team1}</span>
+                     <span className="text-4xl font-black font-gothic text-amber-400">{bracket.final.score1}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                     <span className="text-3xl font-black font-gothic text-white">{bracket.final.team2}</span>
+                     <span className="text-4xl font-black font-gothic text-amber-400">{bracket.final.score2}</span>
+                  </div>
+              </div>
+          </div>
+       </div>
+       
+       {/* Champion */}
+       {bracket.champion && (
+         <div className="mt-16 animate-bounce">
+            <div className="text-2xl text-amber-400 font-bold uppercase tracking-widest text-center mb-2">CHAMPION</div>
+            <div className="text-8xl font-black font-londrina text-white text-shadow-xl bg-gradient-to-r from-amber-400 to-purple-600 bg-clip-text text-transparent">
+               {bracket.champion}
+            </div>
+         </div>
+       )}
+    </div>
+  );
+};
+
 const Overlay: React.FC<OverlayProps> = ({ data }) => {
   const getAsset = (key: keyof AppState['assets'], fallback: string) => {
     return data.assets[key] || fallback;
@@ -188,6 +261,7 @@ const Overlay: React.FC<OverlayProps> = ({ data }) => {
 
   return (
     <div className="relative w-[1920px] h-[1080px] text-white overflow-hidden pointer-events-none">
+      {data.game.isBracketActive && <BracketView bracket={data.bracket} />}
       
       {/* --- INTRO VS LAYER --- */}
       {isIntro && (
@@ -273,6 +347,12 @@ const Overlay: React.FC<OverlayProps> = ({ data }) => {
           <div className="absolute w-[150px] h-[24px] top-[886px] left-[745px] font-gothic text-[32px] flex items-center justify-center text-center uppercase tracking-wider text-white">
             {data.blue.name}
           </div>
+          {/* Blue Score */}
+          {(data.game.visibility?.score ?? true) && (
+            <div className="absolute top-[865px] left-[745px] w-[150px] flex justify-end pr-2">
+              <ScoreIndicator score={data.blue.score} bestOf={data.game.bestOf} side="blue" />
+            </div>
+          )}
       </div>
 
       {/* Red Team Info */}
@@ -283,26 +363,38 @@ const Overlay: React.FC<OverlayProps> = ({ data }) => {
           <div className="absolute w-[150px] h-[24px] top-[886px] left-[1021px] font-gothic text-[32px] flex items-center justify-center text-center uppercase tracking-wider text-white">
             {data.red.name}
           </div>
+          {/* Red Score */}
+          {(data.game.visibility?.score ?? true) && (
+            <div className="absolute top-[865px] left-[1021px] w-[150px] flex justify-start pl-2">
+              <ScoreIndicator score={data.red.score} bestOf={data.game.bestOf} side="red" />
+            </div>
+          )}
       </div>
 
       <div className={`${isIntro ? 'intro-item' : ''}`} style={isIntro ? { animationDelay: '7s' } : {}}>
           {isControlEnabled && (
             <>
-              <div className="absolute w-[51px] h-[46px] left-[938px] top-[968px] font-gothic text-[32px] flex items-center justify-center z-10 text-white">
-                {data.game.timer}
-              </div>
-              <div 
-                className="absolute w-[208px] h-[46px] top-[968px] font-gothic text-[32px] flex items-center justify-center transition-all duration-500 text-white"
-                style={{ left: isRedTurn ? '730px' : '989px' }}
-              >
-                {data.game.phase}
-              </div>
-              <div 
-                className="absolute w-[208px] h-[46px] top-[968px] transition-all duration-500"
-                style={{ left: isRedTurn ? '989px' : '730px' }}
-              >
-                <TurnIndicator turn={data.game.turn} />
-              </div>
+              {(data.game.visibility?.timer ?? true) && (
+                <div className="absolute w-[51px] h-[46px] left-[938px] top-[968px] font-gothic text-[32px] flex items-center justify-center z-10 text-white">
+                  {data.game.timer}
+                </div>
+              )}
+              {(data.game.visibility?.phase ?? true) && (
+                <div 
+                  className="absolute w-[208px] h-[46px] top-[968px] font-gothic text-[32px] flex items-center justify-center transition-all duration-500 text-white"
+                  style={{ left: isRedTurn ? '730px' : '989px' }}
+                >
+                  {data.game.phase}
+                </div>
+              )}
+              {(data.game.visibility?.turn ?? true) && (
+                <div 
+                  className="absolute w-[208px] h-[46px] top-[968px] transition-all duration-500"
+                  style={{ left: isRedTurn ? '989px' : '730px' }}
+                >
+                  <TurnIndicator turn={data.game.turn} />
+                </div>
+              )}
             </>
           )}
       </div>

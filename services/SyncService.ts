@@ -1,6 +1,26 @@
 import { AppState } from '../types';
 
-const WEBSOCKET_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3003';
+// Dynamically determine WebSocket URL based on current host
+const getWebSocketUrl = () => {
+  if (import.meta.env.VITE_WS_URL) {
+    return import.meta.env.VITE_WS_URL;
+  }
+  
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = window.location.hostname;
+
+  // In Development (Vite on 3001), backend is usually on 3003
+  if (import.meta.env.DEV) {
+    return `${protocol}//${host}:3003`;
+  }
+
+  // In Production (Same Origin), use the current port (if any)
+  // This handles both IP:3003 and Public Domains (Implicit Port 80/443)
+  const port = window.location.port ? `:${window.location.port}` : '';
+  return `${protocol}//${host}${port}`;
+};
+
+const WEBSOCKET_URL = getWebSocketUrl();
 
 class SyncService {
   private ws: WebSocket | null = null;
@@ -9,7 +29,13 @@ class SyncService {
   private httpBaseUrl: string;
 
   constructor() {
-    this.httpBaseUrl = WEBSOCKET_URL.replace(/^ws/, 'http');
+    // Determine HTTP base URL dynamically as well
+    const protocol = window.location.protocol;
+    const host = window.location.hostname;
+    // Use the configured WS URL's port/host or fallback to derivation
+    // For simplicity in this specific setup where backend is known to be on 3003:
+    this.httpBaseUrl = `${protocol}//${host}:3003`; 
+    
     this.connect();
   }
 
